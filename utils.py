@@ -3,16 +3,14 @@ import numpy as np
 import os
 
 import re
-import torch
-from torch.utils.data import Dataset
 import pickle
 from sklearn.model_selection import train_test_split
 
 # plotting
-import matplotlib.pyplot as plt
-import seaborn as sns
+#import matplotlib.pyplot as plt
+#import seaborn as sns
 
-plt.style.use('ggplot')
+#plt.style.use('ggplot')
 
 # dealing with words
 import nltk
@@ -30,19 +28,6 @@ nltk.download('omw-1.4')
 stop_words = set(stopwords.words('english'))
 
 
-class FncDataset(Dataset):
-    def __init__(self, dataframe):
-        self.data = dataframe.values
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, i):
-        sample = self.data[i]
-        # Assuming the target variable is in the last column
-        features = sample[:-1]
-        target = sample[-1]
-        return torch.Tensor(features), torch.Tensor([target])
 
 
 class DSLoader:
@@ -112,7 +97,7 @@ class DSLoader:
         return ' '.join(w for w in s.split(" ") if w not in stop_words)
 
     def filterLetters(self, s):
-        return re.sub(r'[^a-zA-Z\s]', '', s).replace('\n', '').replace('\r', '').lower()
+        return re.sub(r'[^a-zA-Z\s.]', '', s).replace('\n', '').replace('\r', '').lower()
 
 
     def cleanDS(self):
@@ -141,6 +126,6 @@ def split(ds, test=0.2, val=0.1):
 
 if __name__ == '__main__':
     ds_path = "fnc-1"
-    ds = DSLoader(ds_path, load=False)
+    ds = DSLoader(ds_path, load=True)
     ds.balanceRelated()
     split(ds.ds, test=0.2, val=0.1)
