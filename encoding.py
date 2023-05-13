@@ -25,7 +25,7 @@ class TfIdfEmbedding:
     modified from [https://www.askpython.com/python/examples/tf-idf-model-from-scratch]
     """
 
-    def __init__(self, titles, bodies, save_path, load=False):
+    def __init__(self, titles, bodies, save_path, load=False, embed=None):
         self.ds = None
         self.titles = titles
         self.bodies = bodies
@@ -160,7 +160,7 @@ class TfIdfEmbedding:
 
 
 class BERTEmbedding:
-    def __init__(self, titles, bodies, save_path, load=False):
+    def __init__(self, titles, bodies, save_path, load=False, embed=True):
         self.ds = None
         self.titles = titles
         self.bodies = bodies
@@ -177,7 +177,7 @@ class BERTEmbedding:
         if load:
             self.load()
         else:
-            self.tokensise()
+            self.tokensise(embed)
 
     def merge(self):
         self.ds = pd.merge(self.bodies, self.titles, on="Body ID")
@@ -212,7 +212,7 @@ class BERTEmbedding:
                 plt.xlim([0, 50])
                 plt.savefig(coll_name + ".png")
 
-    def tokensise(self):
+    def tokensise(self, embed):
         """
         modified from [https://albertauyeung.github.io/2020/06/19/bert-tokenization.html/]
         tokenizes the inputs; adds special charactors; converts to numerical representation
@@ -239,14 +239,17 @@ class BERTEmbedding:
         for df, coll_name in zip([self.bodies, self.titles], ["articleBody", "Headline"]):
             df[coll_name] = df[coll_name].apply(lambda passage: berttokenise(passage, coll_name))
             bert_encodings = []
-            for index, row in df.iterrows():
-                print(f"{(self.counter / len(df)) * 100}%")
-                self.counter += 1
-                val = row[coll_name]
-                bert_encodings.append(self.bertEncode(val))
-            df[coll_name] = bert_encodings
+            if embed:
+                for index, row in df.iterrows():
+                    print(f"{(self.counter / len(df)) * 100}%")
+                    self.counter += 1
+                    val = row[coll_name]
+                    bert_encodings.append(self.bertEncode(val))
+                df[coll_name] = bert_encodings
+
             with open(f"{coll_name}.pkl", "wb") as file:
                 pickle.dump(bert_encodings, file)
+
             """with open(f"{coll_name}.pkl", "rb") as file:
                 df[coll_name] = pickle.load(file)"""
 
@@ -293,7 +296,7 @@ class BERTEmbedding:
                "stance": row["Stance"]}
 
 
-def createEncodedDatasets(ds_path):
+def createEncodedDS(ds_path):
     """
     creates the full merged dataset for bert and tfidf, ready for training
     :return:
@@ -310,4 +313,4 @@ def createEncodedDatasets(ds_path):
 
 if __name__ == '__main__':
     ds_path = "fnc-1"
-    createEncodedDatasets(ds_path)
+    createEncodedDS(ds_path)

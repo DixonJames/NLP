@@ -8,7 +8,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix, roc_curve, auc
 
 
-
+import matplotlib.pyplot as plt
+import seaborn as sns
 import nltk
 from nltk.corpus import stopwords
 
@@ -26,6 +27,8 @@ nltk.download('omw-1.4')
 stop_words = set(stopwords.words('english'))
 
 random.seed(42)
+
+sns.set_style("whitegrid")
 
 
 class DSLoader:
@@ -149,23 +152,67 @@ def split(ds, test=0.2, val=0.1):
 
 
 class ResultsDisplay:
-    def __init__(self, real_values, predicted, labels):
-        self.real_values = real_values
-        self.predicted = predicted
+    def __init__(self, model, real_values, test_df, labels, title):
+        self.model = model
+        self.test_df = test_df
 
+        self.real_values = real_values
+
+        self.title = title
         self.labels = labels
 
+
+        self.predicted_categories = None
+        self.predicted_probs = None
+
+        self.predict()
+
+    def predict(self):
+        test_x = self.test_df[0]
+        # test_y = test_df[1]
+
+        test_x = np.array([a for a in np.array(test_x.values)])
+        # test_y = np.array([relatedness_conversion[int(a.max())] for a in np.array(test_y.values)])
+
+        self.predicted_probs = self.model.predict_proba(test_x)[::,1]
+        self.predicted_categories = (self.model.predict(test_x) >= 0.5).astype(int)
+
     def metrics(self):
-        print(classification_report(self.real_values, self.predicted))
+        print(classification_report(self.real_values, self.predicted_categories))
 
     def confusionMatrix(self):
-        cm = confusion_matrix(self.real_values, self.predicted, labels=self.labels)
+        """
+        modified from [https://www.jcchouinard.com/confusion-matrix-in-scikit-learn/]
+        :return:
+        """
+        cm = pd.DataFrame(confusion_matrix(self.real_values, self.predicted_categories), columns=self.labels,
+                          index=self.labels)
+
+        sns.heatmap(cm,
+                    annot=True, cmap="coolwarm")
+        plt.ylabel('Prediction', fontsize=13)
+        plt.xlabel('Actual', fontsize=13)
+        plt.title(f'{self.title} - Confusion Matrix', fontsize=17)
+        plt.show()
 
     def rocCurve(self):
-        pass
+        fpr, tpr, _ = roc_curve(self.real_values, self.predicted_probs)
+        roc_auc = auc(fpr, tpr)
+
+        plt.figure(figsize=(7, 7))
+        plt.title(f'{self.title} - ROC Curve', fontsize=17)
+        plt.plot(fpr, tpr, 'b', label='AUC = %0.2f' % roc_auc)
+        plt.plot([0, 1], [0, 1], 'r--')
+        plt.xlim([0, 1])
+        plt.ylim([0, 1])
+        plt.grid(True)
+        plt.legend(loc='lower right')
+        plt.ylabel('True Positive Rate', fontsize=16)
+        plt.xlabel('False Positive Rate', fontsize=16)
+        plt.show()
 
 
-def genDatasets():
+def createCleanDS():
     """
     loads and saves datasets for BERT and tfidf
     these differ as some of the text clearning differs between them
@@ -177,5 +224,5 @@ def genDatasets():
 
 
 if __name__ == '__main__':
-    genDatasets()
+    createCleanDS()
     # split(ds.ds, test=0.2, val=0.1)
