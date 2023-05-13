@@ -41,7 +41,7 @@ class LSTM(nn.Module):
         self.drop = nn.Dropout(p=0.5)
 
     def forward(self, head, body):
-        embedding = torch.cat((head, body), dim=1)
+        embedding = torch.cat((head, body), dim=1).float()
         x = self.fc1(embedding)
 
 
@@ -112,7 +112,8 @@ class TrainingLSTM:
         self.train_iterator_len = len(train)
         self.test_iterator_len = len(test)
         self.validate_iterator_len = len(val)
-        train, test, val = self.batchSplitGen(train), self.batchSplitGen(test), self.batchSplitGen(val)
+
+
         self.train_iterator = train
         self.test_iterator = test
         self.validate_iterator = val
@@ -131,37 +132,53 @@ class TrainingLSTM:
         self.model.load_state_dict(state_dict['model_state_dict'])
         self.optimizer.load_state_dict(state_dict['optimizer_state_dict'])
 
-    def save_metrics(self, save_path):
+    def save_metrics(self, save_path, test_acc, train_acc):
         state_dict = {'train_loss_list': self.train_loss_list,
                       'valid_loss_list': self.valid_loss_list,
-                      'global_steps_list': self.global_steps_list}
+                      'global_steps_list': self.global_steps_list,
+                      'training_accuracy': train_acc,
+                      'testing_accuracy': test_acc}
         torch.save(state_dict, save_path)
 
     def load_metrics(self, load_path):
         state_dict = torch.load(load_path, map_location=device)
         return state_dict['train_loss_list'], state_dict['valid_loss_list'], state_dict['global_steps_list']
 
-    def evaluate(self, global_step):
+    def evaluate(self, global_step, test_acc):
         self.model.eval()
 
+        all_predictions = []
+        all_labels = []
         with torch.no_grad():
             # validation loop
-            for heads, bodies, labels in self.validate_iterator:
+            val_it = self.batchSplitGen(self.validate_iterator)
+            for heads, bodies, labels in val_it:
                 labels = labels.to(device)
                 heads = heads.to(device)
                 bodies = bodies.to(device)
 
                 output = self.model(heads, bodies)
 
+                with torch.no_grad():
+                    all_predictions.extend(list(output.to("cpu").numpy()))
+                    all_labels.extend(list(labels.to("cpu").numpy()))
+
                 loss = self.criterion(output, labels)
                 self.valid_running_loss += loss.item()
+
 
         # evaluation
         average_train_loss = self.running_loss / self.evaluation_gap
         average_valid_loss = self.valid_running_loss / self.validate_iterator_len
 
+        all_predictions = [((p) >= 0.5).astype(int) for p in all_predictions]
+        train_acc = len(
+            [1 for c, d in [((int(round(a)) / 0.5), b) for a, b in zip(all_predictions, all_labels)] if c == d]) / len(
+            all_predictions)
+
         self.train_loss_list.append(average_train_loss)
         self.valid_loss_list.append(average_valid_loss)
+        print(f"loss: train:{average_train_loss}, val:{average_valid_loss}")
 
         self.global_steps_list.append(global_step)
 
@@ -179,7 +196,7 @@ class TrainingLSTM:
         if self.best_valid_loss > average_valid_loss:
             self.best_valid_loss = average_valid_loss
             self.save_checkpoint(self.save_folder + '/model.pt')
-            self.save_metrics(self.save_folder + '/metrics.pt')
+            self.save_metrics(self.save_folder + '/metrics.pt', test_acc, train_acc)
 
     def train(self):
         """
@@ -195,13 +212,21 @@ class TrainingLSTM:
         self.model.train()
         for epoch in range(self.epoch_limmit):
             epoch_step = 0
-            for heads, bodies, labels in self.train_iterator:
+            train_it = self.batchSplitGen(self.train_iterator)
+
+            all_predictions = []
+            all_labels = []
+            for heads, bodies, labels in train_it:
 
                 labels = labels.to(device)
                 heads = heads.to(device)
                 bodies = bodies.to(device)
 
                 output = self.model(heads, bodies)
+
+                with torch.no_grad():
+                    all_predictions.extend(list(output.to("cpu").numpy()))
+                    all_labels.extend(list(labels.to("cpu").numpy()))
 
                 loss = self.criterion(output, labels)
                 self.optimizer.zero_grad()
@@ -213,8 +238,14 @@ class TrainingLSTM:
                 global_step += 1
 
                 # evaluation step
-                if global_step % self.evaluation_gap == 0:
-                    self.evaluate(global_step)
+                if global_step % 300 == 0:
+                    all_predictions = [((p) >= 0.5).astype(int) for p in all_predictions]
+                    acc = len(
+                        [1 for c, d in [((int(round(a)) / 0.5), b) for a, b in zip(all_predictions, all_labels)] if
+                         c == d]) / len(all_predictions)
+
+
+                    self.evaluate(global_step, acc)
 
                 print(f"Epoch: {epoch}, {(epoch_step / self.train_iterator_len) * 100}%")
                 epoch_step += 1
@@ -229,6 +260,7 @@ class TrainingLSTM:
 
 
 if __name__ == '__main__':
-    model_type = "bert"
-    lstm = TrainingLSTM(model=LSTM, epochs=50, embedding_scheme=model_type, save_folder="data/lstm")
-    lstm.train()
+    for model_type, embeddings_len in zip(["tfidf", "bert"], [6622, 768]):
+
+        lstm = TrainingLSTM(model=LSTM, epochs=40, embedding_scheme=model_type, save_folder=f"data/lstm/{model_type}", embeddings_len=embeddings_len)
+        lstm.train()
