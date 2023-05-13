@@ -1,3 +1,5 @@
+import numpy as np
+
 from encoding import *
 
 from sklearn.model_selection import train_test_split
@@ -9,21 +11,22 @@ from torch.utils.data import Dataset, DataLoader
 
 SEED = 42
 
-relevance_conversion = {"related": 1, "unrelated": 0}
+Stance_conversion = {"unrelated": 0, "agree":1, "discuss":3, "disagree":2}
 
 
 class EncodingDataset(Dataset):
-    def __init__(self, ds_generator):
-        self.ds_generator = ds_generator
+    def __init__(self, df):
+        self.df = df
 
     def __len__(self):
-        return len(self.ds_generator)
+        return len(self.df)
 
-    def __getitem__(self, item):
-        row = self.ds_generator.getItem(item)
-        row["Stance"] = relevance_conversion[row["Stance"]]
+    def __getitem__(self, index):
+        sample = self.df.iloc[index]
+        features = np.array(sample[["articleBody", "Headline"]])
+        target = np.array(Stance_conversion[sample['Stance']])
 
-        return row
+        return features, target
 
 
 def balanceRelated(ds):
@@ -31,11 +34,13 @@ def balanceRelated(ds):
     ds = ds.groupby('Stance').apply(lambda x: x.sample(min(len(x), min_count))).reset_index(drop=True)
     return ds
 
+
 def shuffle(ds):
     random_order = np.random.permutation(ds.index)
     ds = ds.loc[random_order]
     ds = ds.reset_index(drop=True)
     return ds
+
 
 def split(ds, test=0.2, val=0.5):
     train, test = train_test_split(ds[["articleBody", "Headline", "Stance"]], test_size=test,
@@ -46,24 +51,39 @@ def split(ds, test=0.2, val=0.5):
     return train, test, val
 
 
-def getDataLoaders(model, load=True):
-    ds_path = "fnc-1"
-    dataset = DSLoader(ds_path, model=model, load=load, balanceRelated=True, shuffle=True)
-    ds = dataset.ds
-
-    train, test, val = split(ds)
-
+def getdatasets(model, load):
     if model == "bert":
+        embedding_type = BERTEmbedding
+    else:
+        embedding_type = TfIdfEmbedding
 
-        train_dataGenerator = BERTEmbedding(train, save_path=f"data/{model}/train.pkl", load=False)
-        test_dataGenerator = BERTEmbedding(test, save_path=f"data/{model}/test.pkl", load=False)
-        val_dataGenerator = BERTEmbedding(val, save_path=f"data/{model}/val.pkl", load=False)
+    if not load:
+        dataset = DSLoader(ds_path, model="bert", load=True, balanceRelated=True, shuffle=True)
+        embedding_obj = embedding_type(titles=dataset.titles, bodies=dataset.bodies,
+                                       save_path=f"data/{model}/ds_encoded.pkl", load=False)
 
-    elif model == "tfidf":
-        train_dataGenerator = TfIdfEmbedding(ds, save_path=f"data/{model}/ds_encoded.pkl", load=False)
+    else:
+        embedding_obj = embedding_type(titles=None, bodies=None,
+                                       save_path=f"data/{model}/ds_encoded.pkl", load=load)
 
-    print("done")
+    return embedding_obj.ds
+
+
+def getDataLoaders(model, train=0.2, test=0.5, batch_sieze=32, load=True, dataloader=True):
+    whole_ds = getdatasets(model, load)
+    whole_ds = balanceRelated(whole_ds)
+    whole_ds = shuffle(whole_ds)
+
+    train, test, val = split(whole_ds, test=0.2, val=0.5)
+    train, test, val = EncodingDataset(train), EncodingDataset(test), EncodingDataset(val)
+
+    if dataloader:
+        train = torch.utils.data.DataLoader(train, batch_size=batch_sieze, shuffle=True)
+        test = torch.utils.data.DataLoader(test, batch_size=batch_sieze, shuffle=True)
+        val = torch.utils.data.DataLoader(val, batch_size=batch_sieze, shuffle=True)
+
+    return train, test, val
 
 
 if __name__ == '__main__':
-    getDataLoaders(model="tfidf")
+    getDataLoaders(model="bert", load=True)

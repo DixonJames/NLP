@@ -5,14 +5,10 @@ import random
 import re
 import pickle
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix, roc_curve, auc
 
-# plotting
-# import matplotlib.pyplot as plt
-# import seaborn as sns
 
-# plt.style.use('ggplot')
 
-# dealing with words
 import nltk
 from nltk.corpus import stopwords
 
@@ -22,6 +18,7 @@ from nltk.tokenize import word_tokenize
 from nltk.stem import WordNetLemmatizer
 from nltk.corpus import wordnet
 from nltk.stem import PorterStemmer
+from sklearn.metrics import classification_report
 
 nltk.download('punkt')
 nltk.download('wordnet')
@@ -51,8 +48,6 @@ class DSLoader:
             self.load()
         else:
             self.cleanDS()
-
-
 
     def loadCheck(self):
         if os.path.exists(self.body_save_path) and os.path.exists(self.title_save_path):
@@ -142,8 +137,6 @@ class DSLoader:
         self.save()
 
 
-
-
 def split(ds, test=0.2, val=0.1):
     train = 1 - test - val
     X_train, X_test, y_train, y_test = train_test_split(ds[["articleBody", "Headline"]], ds["Stance"], test_size=test,
@@ -155,7 +148,29 @@ def split(ds, test=0.2, val=0.1):
     return (X_train, y_train), (X_test, y_test), (X_val, y_val)
 
 
+class ResultsDisplay:
+    def __init__(self, real_values, predicted, labels):
+        self.real_values = real_values
+        self.predicted = predicted
+
+        self.labels = labels
+
+    def metrics(self):
+        print(classification_report(self.real_values, self.predicted))
+
+    def confusionMatrix(self):
+        cm = confusion_matrix(self.real_values, self.predicted, labels=self.labels)
+
+    def rocCurve(self):
+        pass
+
+
 def genDatasets():
+    """
+    loads and saves datasets for BERT and tfidf
+    these differ as some of the text clearning differs between them
+    :return:
+    """
     ds_path = "fnc-1"
     ds_bert = DSLoader(ds_path=ds_path, model="bert", load=False, balanceRelated=True, shuffle=True)
     ds_tfidf = DSLoader(ds_path=ds_path, model="tfidf", load=False, balanceRelated=True, shuffle=True)

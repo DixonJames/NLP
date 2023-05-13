@@ -33,7 +33,7 @@ class TfIdfEmbedding:
         self.save_path = save_path
         self.head_vectorizer = TfidfVectorizer(decode_error='ignore', lowercase=True, min_df=2, stop_words='english')
         self.body_vectorizer = TfidfVectorizer(decode_error='ignore', lowercase=True, min_df=2)
-        self.load = load
+        self.load_bool = load
 
         self.word_embedding_matrix = None
         self.document_embedding_matrix = None
@@ -65,13 +65,13 @@ class TfIdfEmbedding:
 
     def clean(self):
         def filterPeriods(s):
-            #print(f"{(self.counter / len(self.ds)) * 100}")
+            # print(f"{(self.counter / len(self.ds)) * 100}")
             self.counter += 1
             s = s.replace('.', '')
             s = " ".join([s for s in s.split(" ") if s.isalpha() and s not in stop_words])
             return s
 
-        for df, coll in zip([self.bodies, self.titles],["articleBody", "Headline"]):
+        for df, coll in zip([self.bodies, self.titles], ["articleBody", "Headline"]):
             df[coll] = df[coll].apply(filterPeriods)
 
     def batch_iterator(self, strings, batch_size=1000):
@@ -79,7 +79,7 @@ class TfIdfEmbedding:
             yield strings[i:i + batch_size]
 
     def createSetWords(self):
-        for df, coll in zip([self.bodies, self.titles],["articleBody", "Headline"]):
+        for df, coll in zip([self.bodies, self.titles], ["articleBody", "Headline"]):
             for doc in df[coll]:
                 self.word_set.update(set([w for w in doc.split(" ")]))
                 for w in doc.split(" "):
@@ -87,10 +87,10 @@ class TfIdfEmbedding:
 
         i = 0
         for word in self.word_set:
-            if self.word_count[word] > 2:
+            if self.word_count[word] > 5:
                 self.index_pos[word] = i
                 i += 1
-        self.word_set = set([k for k in self.word_count.keys() if self.word_count[k] > 2])
+        self.word_set = set([k for k in self.word_count.keys() if self.word_count[k] > 5])
 
     def tf(self, docs):
 
@@ -133,7 +133,7 @@ class TfIdfEmbedding:
         return tf_idf_vec
 
     def transform(self):
-        for df, coll in zip([self.bodies, self.titles],["articleBody", "Headline"]):
+        for df, coll in zip([self.bodies, self.titles], ["articleBody", "Headline"]):
             docs = df[coll]
             tf = self.tf(docs)
             idf = self.idf(docs)
@@ -225,8 +225,8 @@ class BERTEmbedding:
             else:
                 length = self.head_length
 
-            #print(f"{(self.counter / len(self.ds)) * 100}%")
-            self.counter += 1
+            # print(f"{(self.counter / len(self.ds)) * 100}%")
+            # self.counter += 1
             return self.tokenizer.encode_plus(
                 text=pasage,
                 add_special_tokens=True,
@@ -238,7 +238,17 @@ class BERTEmbedding:
 
         for df, coll_name in zip([self.bodies, self.titles], ["articleBody", "Headline"]):
             df[coll_name] = df[coll_name].apply(lambda passage: berttokenise(passage, coll_name))
-            self.counter = 0
+            bert_encodings = []
+            for index, row in df.iterrows():
+                print(f"{(self.counter / len(df)) * 100}%")
+                self.counter += 1
+                val = row[coll_name]
+                bert_encodings.append(self.bertEncode(val))
+            df[coll_name] = bert_encodings
+            with open(f"{coll_name}.pkl", "wb") as file:
+                pickle.dump(bert_encodings, file)
+            """with open(f"{coll_name}.pkl", "rb") as file:
+                df[coll_name] = pickle.load(file)"""
 
         self.merge()
         self.save()
@@ -250,11 +260,12 @@ class BERTEmbedding:
         attention_mask = encoded_input['attention_mask']
         token_type_ids = encoded_input['token_type_ids']
 
-        outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids)
-        word_embedding = outputs.last_hidden_state
-        passage_embedding = outputs.pooler_output
+        with torch.no_grad():
+            outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids)
+            word_embedding = outputs.last_hidden_state
+            passage_embedding = outputs.pooler_output
 
-        return passage_embedding
+        return passage_embedding.numpy()
 
     def encode(self):
 
@@ -282,8 +293,12 @@ class BERTEmbedding:
                "stance": row["Stance"]}
 
 
-if __name__ == '__main__':
-    ds_path = "fnc-1"
+def createEncodedDatasets(ds_path):
+    """
+    creates the full merged dataset for bert and tfidf, ready for training
+    :return:
+    """
+
     bert_dataset = DSLoader(ds_path, model="bert", load=True, balanceRelated=True, shuffle=True)
     tfidf_dataset = DSLoader(ds_path, model="tfidf", load=True, balanceRelated=True, shuffle=True)
 
@@ -291,3 +306,8 @@ if __name__ == '__main__':
                            save_path="data/tfidf/ds_encoded.pkl", load=False)
     bert = BERTEmbedding(titles=bert_dataset.titles, bodies=bert_dataset.bodies,
                          save_path="data/bert/ds_encoded.pkl", load=False)
+
+
+if __name__ == '__main__':
+    ds_path = "fnc-1"
+    createEncodedDatasets(ds_path)
