@@ -165,7 +165,7 @@ class ResultsDisplay:
         self.predicted_categories = None
         self.predicted_probs = None
 
-        self.predict()
+        #self.predict()
 
     def predict(self):
         test_x = self.test_df[0]
@@ -185,13 +185,14 @@ class ResultsDisplay:
         modified from [https://www.jcchouinard.com/confusion-matrix-in-scikit-learn/]
         :return:
         """
-        cm = pd.DataFrame(confusion_matrix(self.real_values, self.predicted_categories), columns=self.labels,
+        cm = confusion_matrix(self.real_values, self.predicted_categories)
+        cm = pd.DataFrame(cm, columns=self.labels,
                           index=self.labels)
 
         sns.heatmap(cm,
                     annot=True, cmap="coolwarm")
-        plt.ylabel('Prediction', fontsize=13)
-        plt.xlabel('Actual', fontsize=13)
+        plt.ylabel('Actual', fontsize=13)
+        plt.xlabel('Prediction', fontsize=13)
         plt.title(f'{self.title} - Confusion Matrix', fontsize=17)
         plt.show()
 
@@ -219,8 +220,8 @@ def createCleanDS():
     :return:
     """
     ds_path = "fnc-1"
-    ds_bert = DSLoader(ds_path=ds_path, model="bert", load=False, balanceRelated=True, shuffle=True)
-    ds_tfidf = DSLoader(ds_path=ds_path, model="tfidf", load=False, balanceRelated=True, shuffle=True)
+    ds_bert = DSLoader(ds_path=ds_path, model="bert", load=False, balanceRelated=True, shuffle=False)
+    ds_tfidf = DSLoader(ds_path=ds_path, model="tfidf", load=False, balanceRelated=True, shuffle=False)
 
 
 if __name__ == '__main__':

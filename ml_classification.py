@@ -53,6 +53,7 @@ def modelEval(model, test_df, title):
 
     eval = ResultsDisplay(model=model, real_values=true_labels, test_df=test_df, labels=["Related", "Unrelated"],
                           title=title)
+    eval.predict()
     eval.metrics()
     eval.confusionMatrix()
     eval.rocCurve()
@@ -85,4 +86,4 @@ def evaluateAll(training_size_limmit=1000):
 
 if __name__ == '__main__':
     trainAll(training_size_limmit=20000)
-    #evaluateAll(training_size_limmit=1000)
+    evaluateAll(training_size_limmit=1000)

@@ -222,7 +222,7 @@ class BERTEmbedding:
         def berttokenise(pasage, coll_name):
             if coll_name == "articleBody":
                 length = self.body_length
-            else:
+            elif coll_name == "Headline":
                 length = self.head_length
 
             # print(f"{(self.counter / len(self.ds)) * 100}%")
@@ -302,13 +302,17 @@ def createEncodedDS(ds_path):
     :return:
     """
 
-    bert_dataset = DSLoader(ds_path, model="bert", load=True, balanceRelated=True, shuffle=True)
     tfidf_dataset = DSLoader(ds_path, model="tfidf", load=True, balanceRelated=True, shuffle=True)
 
     tfidf = TfIdfEmbedding(titles=tfidf_dataset.titles, bodies=tfidf_dataset.bodies,
                            save_path="data/tfidf/ds_encoded.pkl", load=False)
+
+    bert_dataset = DSLoader(ds_path, model="bert", load=True, balanceRelated=True, shuffle=True)
     bert = BERTEmbedding(titles=bert_dataset.titles, bodies=bert_dataset.bodies,
                          save_path="data/bert/ds_encoded.pkl", load=False)
+
+
+
 
 
 if __name__ == '__main__':
