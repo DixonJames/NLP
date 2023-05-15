@@ -293,11 +293,11 @@ class TrainingModel:
         self.save_metrics(self.save_folder + '/metrics.pt')
         print('Finished Training!')
 
-def dLTrainEvaluate():
+def dLTrainEvaluate(epochs=20):
     for model_type, embeddings_len in zip(["bert", "tfidf"], [768, 6622]):
         #training
-        lstm = TrainingModel(model=LSTM, epochs=20, embedding_scheme=model_type, save_folder=f"data/lstm/{model_type}",
-                             embeddings_len=embeddings_len, title=model_type, labels=["agree", "disagree", "discuss"])
+        lstm = TrainingModel(model=LSTM, epochs=epochs, embedding_scheme=model_type, save_folder=f"data/lstm/{model_type}",
+                             embeddings_len=embeddings_len, title=model_type, labels=["unrelated", "related"])
         lstm.train()
 
         #evaluation
@@ -307,4 +307,4 @@ def dLTrainEvaluate():
         lstm.plotGraphs()
 
 if __name__ == '__main__':
-    dLTrainEvaluate()
+    dLTrainEvaluate(epochs=20)

@@ -70,7 +70,6 @@ def trainAll(training_size_limmit=1000):
             pickle.dump(trained_model, file)
 
 
-
 def evaluateAll(training_size_limmit=1000):
     for model in ["bert", "tfidf"]:
         train, test, val = getDataLoaders(model=model, load=True, dataloader=False)
@@ -85,5 +84,5 @@ def evaluateAll(training_size_limmit=1000):
 
 
 if __name__ == '__main__':
-    trainAll(training_size_limmit=20000)
+    trainAll(training_size_limmit=100)
     evaluateAll(training_size_limmit=1000)

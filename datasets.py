@@ -28,6 +28,7 @@ class EncodingDataset(Dataset):
 
         return np.array((features[0].flatten(), features[1].flatten())), target.tolist()
 
+
 class EncodingDatasets(Dataset):
     def __init__(self, df1, df2):
         self.df1 = df1
@@ -41,17 +42,19 @@ class EncodingDatasets(Dataset):
         features1 = np.array(sample1[["articleBody", "Headline"]])
         target1 = np.array(Stance_conversion[sample1['Stance']])
 
-        sample2 = self.df1.iloc[index]
+        sample2 = self.df2.iloc[index]
         features2 = np.array(sample2[["articleBody", "Headline"]])
+        target2 = np.array(Stance_conversion[sample2['Stance']])
 
-
-        return np.array((features1[0].flatten(), features1[1].flatten())), np.array((features2[0].flatten(), features2[1].flatten())), target1.tolist()
+        return np.array((features1[0].flatten(), features1[1].flatten())), np.array(
+            (features2[0].flatten(), features2[1].flatten())), target1.tolist()
 
 
 def balanceRelated(ds):
     min_count = sum(ds["Stance"].value_counts()) - ds["Stance"].value_counts()["unrelated"]
     ds = ds.groupby('Stance').apply(lambda x: x.sample(min(len(x), min_count))).reset_index(drop=True)
     return ds
+
 
 def balanceAllCat(ds):
     min_count = sum(ds["Stance"].value_counts()) - ds["Stance"].value_counts()["unrelated"]
@@ -95,22 +98,23 @@ def getdatasets(model, load, embed=True):
 
     return embedding_obj.ds
 
+
 def getBothdatasets(load, embed=True):
     ds_path = f"fnc-1"
 
     dataset1 = DSLoader(ds_path, model="bert", load=True, balanceRelated=True, shuffle=True)
     embedding_obj1 = BERTEmbedding(titles=dataset1.titles, bodies=dataset1.bodies,
-                                   save_path=f"data/bert/ds_encoded.pkl", load=False, embed=embed)
-
+                                   save_path=f"data/bert/ds_encoded.pkl", load=load, embed=embed)
 
     dataset2 = DSLoader(ds_path, model="tfidf", load=True, balanceRelated=True, shuffle=load)
     embedding_obj2 = TfIdfEmbedding(titles=dataset2.titles, bodies=dataset2.bodies,
-                                   save_path=f"data/tfidf/ds_encoded.pkl", load=load, embed=embed)
+                                    save_path=f"data/tfidf/ds_encoded.pkl", load=load, embed=embed)
 
     return embedding_obj1.ds, embedding_obj2.ds
 
 
-def getDataLoaders(model, train=0.2, test=0.5, batch_sieze=32, load=True, dataloader=True, embed=True, shuffle_ds=True, balance=True, balanceAll=False):
+def getDataLoaders(model, train=0.2, test=0.5, batch_sieze=32, load=True, dataloader=True, embed=True, shuffle_ds=True,
+                   balance=True, balanceAll=False):
     """
     get; balance for relatedness; shffule; and plits the dataset
     :param model: tfidf or bert
@@ -140,7 +144,9 @@ def getDataLoaders(model, train=0.2, test=0.5, batch_sieze=32, load=True, datalo
 
     return train, test, val
 
-def getCombinedDataLoaders(model, train=0.2, test=0.5, batch_sieze=32, load=True, dataloader=True, embed=True, shuffle_ds=True, balance=True, balanceAll=False):
+
+def getCombinedDataLoaders(model, train=0.2, test=0.5, batch_sieze=32, load=True, dataloader=True, embed=True,
+                           shuffle_ds=True, balance=True, balanceAll=False):
     """
     get; balance for relatedness; shffule; and plits the dataset
     :param model: tfidf or bert
@@ -154,14 +160,19 @@ def getCombinedDataLoaders(model, train=0.2, test=0.5, batch_sieze=32, load=True
     """
     whole_ds1, whole_ds2 = getBothdatasets(load)
     if balance:
-        whole_ds1 = balanceRelated(whole_ds1)
-        whole_ds2 = balanceRelated(whole_ds2)
-    if balanceAll:
-        whole_ds1 = balanceAllCat(whole_ds1)
-        whole_ds2 = balanceAllCat(whole_ds2)
+        max_number_per_class = whole_ds1["Stance"].value_counts().min()
+        subset_indices = []
+        for c in list(whole_ds1["Stance"].value_counts().keys()):
+            indices1 = whole_ds1[whole_ds1['Stance'] == c].index
+            subset_indices.extend(random.sample(list(indices1), max_number_per_class))
+
+        whole_ds1 = whole_ds1.loc[subset_indices]
+        whole_ds2 = whole_ds2.loc[subset_indices]
+
     if shuffle_ds:
-        whole_ds1 = shuffle(whole_ds1)
-        whole_ds2 = shuffle(whole_ds2)
+        permutation = np.random.permutation(len(whole_ds1))
+        whole_ds1 = whole_ds1.iloc[permutation].reset_index(drop=True)
+        whole_ds2 = whole_ds2.iloc[permutation].reset_index(drop=True)
 
     train1, test1, val1 = split(whole_ds1, test=0.2, val=0.5)
     train2, test2, val2 = split(whole_ds2, test=0.2, val=0.5)
@@ -205,5 +216,5 @@ def getRelatedDataLoaders(model, train=0.2, test=0.5, batch_sieze=32, load=True,
 
 if __name__ == '__main__':
     train, test, val = getDataLoaders(model="bert", load=True, embed=True)
-    #[a for a in val]
+    # [a for a in val]
     print("done")

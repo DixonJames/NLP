@@ -213,7 +213,7 @@ class TrainingBertClass(TrainingModel):
 
 
 if __name__ == '__main__':
-    bert_classifier = TrainingBertClass(model=BERTClassification, epochs=5, embedding_scheme="bert",
+    bert_classifier = TrainingBertClass(model=BERTClassification, epochs=1, embedding_scheme="bert",
                                         save_folder=f"data/dl_classification",
                                         embeddings_len=None, title="Bert DL Classification",
                                         labels=["Agree", "Disagree", "Discuss"])

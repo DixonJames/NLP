@@ -21,22 +21,30 @@ class FullClassification:
         self.relatednessModel = relatednessModel
         self.discussionModel = discussionModel
 
-        self.tfidf_train, self.tfidf_test, self.tfidf_val = self.loadDataset("tfidf")
-        self.bert_train, self.bert_test, self.bert_val = self.loadDataset("bert")
+        self.train, self.test, self.val = self.loadDataset("tfidf")
+
 
         self.labels = ["unrelated", "agree", "discuss", "disagree"]
         self.title = "LSTM & BERT Stack Classification"
 
     def batchSplitGen(self, batchIterator):
         for batch in batchIterator:
-            labels = torch.tensor(batch[1]).float()
-            heads, bodies = torch.split(batch[0], 1, dim=1)
-            heads = heads.squeeze(dim=1)
-            bodies = bodies.squeeze(dim=1)
-            yield heads, bodies, labels
+            labels = torch.tensor(batch[2]).float()
+            bert = batch[0]
+            tfidf = batch[1]
+
+            b_heads, b_bodies = torch.split(bert, 1, dim=1)
+            b_heads = b_heads.squeeze(dim=1)
+            b_bodies = b_bodies.squeeze(dim=1)
+
+            t_heads, t_bodies = torch.split(tfidf, 1, dim=1)
+            t_heads = t_heads.squeeze(dim=1)
+            t_bodies = t_bodies.squeeze(dim=1)
+
+            yield (b_heads, b_bodies), (t_heads, t_bodies), labels
 
     def loadDataset(self, model):
-        train, test, val = getCombinedDataLoaders(model=model, load=True, dataloader=True, shuffle_ds=False, balance=False)
+        train, test, val = getCombinedDataLoaders(model=model, load=True, dataloader=True, shuffle_ds=True, balance=True)
         return train, test, val
 
     def evaluate(self):
@@ -48,11 +56,11 @@ class FullClassification:
         all_labels = []
         with torch.no_grad():
             # validation loop
-            bert_val_it = self.batchSplitGen(self.bert_val)
-            tfidf_val_it = self.batchSplitGen(self.tfidf_val)
-            for (bert_heads, bert_bodies, bert_labels), (tfidf_heads, tfidf_bodies, tfidf_labels) in zip(bert_val_it,
-                                                                                                         tfidf_val_it):
-                bert_labels = bert_labels.to(device)
+            val_it = self.batchSplitGen(self.val)
+
+            for (bert_heads, bert_bodies), (tfidf_heads, tfidf_bodies), labels in val_it:
+                labels = labels.to(device)
+
                 bert_heads = bert_heads.to(device)
                 bert_bodies = bert_bodies.to(device)
 
@@ -65,7 +73,7 @@ class FullClassification:
                 with torch.no_grad():
                     all_realtedness_predictions.extend(list(relatedness_output.to("cpu").numpy()))
                     all_discussion_predictions.extend(list(discussion_output.to("cpu").numpy()))
-                    all_labels.extend(list(bert_labels.to("cpu").numpy()))
+                    all_labels.extend(list(labels.to("cpu").numpy()))
 
         # get validation set accuracey
 
@@ -104,15 +112,4 @@ def runfull():
 
 
 if __name__ == '__main__':
-    bert_discussion = TrainingBertClass(model=BERTClassification, epochs=1, embedding_scheme="bert",
-                                        save_folder=f"data/dl_classification",
-                                        embeddings_len=None, title="Bert DL Classification",
-                                        labels=["Agree", "Disagree", "Discuss"])
-    bert_discussion.load_checkpoint()
-
-    lstm_relatdedness = TrainingModel(model=LSTM, epochs=20, embedding_scheme="tfidf", save_folder=f"data/lstm/tfidf",
-                                      embeddings_len=6622, title="tfidf", labels=["agree", "disagree", "discuss"])
-    lstm_relatdedness.load_checkpoint()
-
-    fc = FullClassification(relatednessModel=lstm_relatdedness.model, discussionModel=bert_discussion.model)
-    fc.evaluate()
+    runfull()
